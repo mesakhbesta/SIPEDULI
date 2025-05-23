@@ -6,6 +6,9 @@ import io
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from nltk.corpus import stopwords as nltk_stopwords
+import joblib
+import requests
+from io import BytesIO
 
 st.set_page_config(page_title="Klasifikasi Kendala SIPEDULI", layout="wide")
 
