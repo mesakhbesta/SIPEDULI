@@ -13,8 +13,13 @@ from io import BytesIO
 st.set_page_config(page_title="Klasifikasi Kendala SIPEDULI", layout="wide")
 
 @st.cache_resource
-def load_model(path):
-    return joblib.load(path)
+def load_model_from_hf(url):
+    response = requests.get(url)
+    response.raise_for_status()  # Pastikan request berhasil
+    model = joblib.load(BytesIO(response.content))
+    return model
+
+hf_model_url = "https://huggingface.co/mesakhbesta/clfsipeduli/resolve/main/voting_clf.joblib"
 
 @st.cache_resource
 def load_tfidf(path):
@@ -24,8 +29,7 @@ def load_tfidf(path):
 def load_svd(path):
     return joblib.load(path)
 
-# Load model dan transformer (sesuaikan path jika perlu)
-model = load_model("E:/DOWNLOAD/voting_clf.joblib")
+model = load_model_from_hf(hf_model_url)
 tfidf = load_tfidf("tfidf.joblib")
 svd = load_svd("svd.joblib")
 
