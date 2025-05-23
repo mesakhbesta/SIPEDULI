@@ -26,8 +26,8 @@ def load_svd(path):
 
 # Load model dan transformer (sesuaikan path jika perlu)
 model = load_model("E:/DOWNLOAD/voting_clf.joblib")
-tfidf = load_tfidf("E:/DOWNLOAD/tfidf.joblib")
-svd = load_svd("E:/DOWNLOAD/svd.joblib")
+tfidf = load_tfidf("tfidf.joblib")
+svd = load_svd("svd.joblib")
 
 # --- Fungsi Preprocessing ---
 def preprocess_text(text):
