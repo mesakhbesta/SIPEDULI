@@ -248,7 +248,7 @@ st.markdown("""
 3. Pilih kolom teks kendala  
 4. Klik **Proses Prediksi**  
 5. Download hasil  
-
+""")
 st.sidebar.header("📁 Upload File")
 file = st.sidebar.file_uploader("📎 Pilih file CSV/Excel", type=['csv','xlsx'])
 
