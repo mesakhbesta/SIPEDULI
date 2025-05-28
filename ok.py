@@ -9,6 +9,7 @@ from nltk.corpus import stopwords as nltk_stopwords
 import joblib
 import requests
 from io import BytesIO
+import json
 import nltk
 from functools import lru_cache
 nltk.download('stopwords')
@@ -37,17 +38,23 @@ tfidf = load_tfidf("tfidf.joblib")
 svd = load_svd("svd.joblib")
 
 @st.cache_data(show_spinner=False)
-def get_stemmed_mapping(unique_texts):
-    stop_factory = StopWordRemoverFactory()
-    sw_ind = stop_factory.get_stop_words()
-    sw_eng = nltk_stopwords.words('english')
-    combined = set(sw_ind + sw_eng)
+def get_stemmed_mapping(text_list):
+    # load cache statis sekali saja
+    with open("stem_cache.json", 'r') as f:
+        static_cache = json.load(f)
+    
     stemmer = StemmerFactory().create_stemmer()
-
-    def clean_text(t):
+    stop_factory = StopWordRemoverFactory()
+    combined_stopwords = set(stop_factory.get_stop_words() + nltk_stopwords.words('english'))
+    
+    runtime_cache = {}  # untuk simpan kata baru selama runtime fungsi ini
+    
+    def clean_and_stem(t):
         t = str(t).lower()
         t = re.sub(r'[^a-z\s]', ' ', t)
         t = re.sub(r'\s+', ' ', t).strip()
+
+        # subs (optional)
         subs = {
             r"\bmasuk\b": "login",
             r"\blog-in\b": "login",
@@ -59,22 +66,33 @@ def get_stemmed_mapping(unique_texts):
         }
         for pat, rep in subs.items():
             t = re.sub(pat, rep, t)
-        words = [w for w in t.split() if w not in combined]
-        stems = [stemmer.stem(w) for w in words]
-        return ' '.join(stems)
+
+        words = [w for w in t.split() if w not in combined_stopwords]
+
+        stemmed_words = []
+        for w in words:
+            if w in static_cache:
+                stemmed_words.append(static_cache[w])
+            elif w in runtime_cache:
+                stemmed_words.append(runtime_cache[w])
+            else:
+                stemmed = stemmer.stem(w)
+                runtime_cache[w] = stemmed
+                stemmed_words.append(stemmed)
+
+        return ' '.join(stemmed_words)
 
     mapping = {}
-    for txt in unique_texts:
-        mapping[txt] = clean_text(txt)
+    for text in text_list:
+        mapping[text] = clean_and_stem(text)
+
     return mapping
+
     
-# --- Fungsi Preprocessing ---
 def preprocess_text(text):
-    # Remove header sapaan OJK
     def remove_dear_ojk(t):
         return re.sub(r"Dear\s*Bapak/Ibu\s*Helpdesk\s*OJK", "", t, flags=re.IGNORECASE) if isinstance(t, str) else t
 
-    # Extract bagian komplain
     def extract_complaint(t):
         if not isinstance(t, str):
             return "Bagian komplain tidak ditemukan."
@@ -278,13 +296,21 @@ if file:
         progress_bar = st.progress(0)
         status_text = st.empty()
         with st.spinner("⏳ Memproses......"):
-            # 1/5 Preprocessing
             status_text.text("1/5: Preprocessing teks...")
-            df_sel['Pre_Cleaned'] = df_sel[col].apply(preprocess_text)
-            unique_texts = df_sel['Pre_Cleaned'].dropna().unique().tolist()
-            stemmed_map = get_stemmed_mapping(unique_texts)
+            # Preprocessing dasar dulu
+            df_sel['Pre_Cleaned'] = df_sel[col].fillna('').apply(preprocess_text)
+            
+            # Ambil unique teks hasil preprocess
+            unique_texts = df_sel['Pre_Cleaned'].unique().tolist()
+            
+            # Dapatkan mapping kata dari cache statis + stemming runtime
+            stemmed_map = get_stemmed_mapping(unique_texts)  # ini versi cache statis + stemming
+            
+            # Map hasil stemmed ke kolom Cleaned
             df_sel['Cleaned'] = df_sel['Pre_Cleaned'].map(stemmed_map)
+            
             progress_bar.progress(20)
+
 
             # 2/5 TF-IDF
             status_text.text("2/5: Transformasi TF-IDF...")
