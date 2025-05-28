@@ -10,6 +10,7 @@ import joblib
 import requests
 from io import BytesIO
 import nltk
+from functools import lru_cache
 nltk.download('stopwords')
 
 st.set_page_config(page_title="Klasifikasi Kendala SIPEDULI", layout="wide")
@@ -35,6 +36,38 @@ model = load_model_from_hf(hf_model_url)
 tfidf = load_tfidf("tfidf.joblib")
 svd = load_svd("svd.joblib")
 
+@st.cache_data(show_spinner=False)
+def get_stemmed_mapping(unique_texts):
+    stop_factory = StopWordRemoverFactory()
+    sw_ind = stop_factory.get_stop_words()
+    sw_eng = nltk_stopwords.words('english')
+    combined = set(sw_ind + sw_eng)
+    stemmer = StemmerFactory().create_stemmer()
+
+    def clean_text(t):
+        t = str(t).lower()
+        t = re.sub(r'[^a-z\s]', ' ', t)
+        t = re.sub(r'\s+', ' ', t).strip()
+        subs = {
+            r"\bmasuk\b": "login",
+            r"\blog-in\b": "login",
+            r"\brenbis\b": "rencana bisnis",
+            r"\baro\b": "administrator responsible officer",
+            r"\bro\b": "responsible officer",
+            r"\bmengunduh\b": "download",
+            r"\bunduh\b": "download"
+        }
+        for pat, rep in subs.items():
+            t = re.sub(pat, rep, t)
+        words = [w for w in t.split() if w not in combined]
+        stems = [stemmer.stem(w) for w in words]
+        return ' '.join(stems)
+
+    mapping = {}
+    for txt in unique_texts:
+        mapping[txt] = clean_text(txt)
+    return mapping
+    
 # --- Fungsi Preprocessing ---
 def preprocess_text(text):
     # Remove header sapaan OJK
@@ -194,38 +227,12 @@ def preprocess_text(text):
             if kw in c:
                 c = c.split(kw)[0]
         return c
-    
-    stop_factory = StopWordRemoverFactory()
-    sw_ind = stop_factory.get_stop_words()
-    sw_eng = nltk_stopwords.words('english')
-    combined = set(sw_ind + sw_eng)
-    stemmer = StemmerFactory().create_stemmer()
-
-    def clean_text(t):
-        t = str(t).lower()
-        t = re.sub(r'[^a-z\s]', ' ', t)
-        t = re.sub(r'\s+', ' ', t).strip()
-        subs = {
-            r"\bmasuk\b": "login",
-            r"\blog-in\b": "login",
-            r"\brenbis\b": "rencana bisnis",
-            r"\baro\b": "administrator responsible officer",
-            r"\bro\b": "responsible officer",
-            r"\bmengunduh\b": "download",
-            r"\bunduh\b": "download"
-        }
-        for pat, rep in subs.items():
-            t = re.sub(pat, rep, t)
-        words = [w for w in t.split() if w not in combined]
-        stems = [stemmer.stem(w) for w in words]
-        cleaned = ' '.join(stems)
-        return cleaned
 
     t = remove_dear_ojk(text)
     comp = extract_complaint(t)
     comp = clean_email_text(comp)
     comp = cut_off_general(comp)
-    return clean_text(comp)
+    return comp
 
 def to_excel(df):
     output = io.BytesIO()
@@ -278,7 +285,10 @@ if file:
         with st.spinner("⏳ Memproses......"):
             # 1/5 Preprocessing
             status_text.text("1/5: Preprocessing teks...")
-            df_sel['Cleaned'] = df_sel[col].apply(preprocess_text)
+            df_sel['Pre_Cleaned'] = df_sel[col].apply(preprocess_text)
+            unique_texts = df_sel['Pre_Cleaned'].dropna().unique().tolist()
+            stemmed_map = get_stemmed_mapping(unique_texts)
+            df_sel['Cleaned'] = df_sel['Pre_Cleaned'].map(stemmed_map)
             progress_bar.progress(20)
 
             # 2/5 TF-IDF
