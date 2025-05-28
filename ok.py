@@ -249,11 +249,6 @@ st.markdown("""
 4. Klik **Proses Prediksi**  
 5. Download hasil  
 
-🕒 **Catatan:** Proses mungkin memakan waktu sekitar 5–10 menit karena adanya tahap pembersihan dan stemming.  
-💡 Anda bisa mengerjakan hal lain sambil menunggu proses selesai.
-""")
-
-
 st.sidebar.header("📁 Upload File")
 file = st.sidebar.file_uploader("📎 Pilih file CSV/Excel", type=['csv','xlsx'])
 
